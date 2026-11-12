@@ -20,21 +20,29 @@ Não altera a instalação do Stremio: um launcher abre o Stremio oficial aponta
   - **[cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) só no PC do admin** (`winget install Cloudflare.cloudflared`). Os amigos não instalam nada. Veja [Sala pela internet](#sala-pela-internet-cloudflared).
   - [Tailscale](https://tailscale.com/) conectado em todos os PCs, na mesma rede (tailnet).
   - Um servidor de salas externo (veja abaixo).
-- Node.js 18+ só para quem for gerar a pasta `dist`. Quem só usa não precisa instalar nada.
+- Node.js 18+ só para quem for gerar a pasta `dist` a partir do código. Quem baixa a versão pronta não precisa instalar nada.
 
-## Gerar a pasta `dist`
+## Baixar
+
+**[Baixar a versão mais recente](https://github.com/guitavaress/stremio-party/releases/latest)**
+
+Na página da versão, baixe o `.zip` em *Assets* e extraia em qualquer pasta. Ele traz tudo: `StremioParty.cmd`, `party.js`, `client.js`, `server.js`. Todos da sala usam o mesmo pacote, admin e amigos.
+
+### Gerar a partir do código
+
+Alternativa ao download, para quem quer rodar a versão do repositório:
 
 ```
 npm install
 npm run build
 ```
 
-Mande a pasta `dist` para os amigos (ela tem tudo: `StremioParty.cmd`, `party.js`, `client.js`, `server.js`).
+O resultado fica na pasta `dist`, com os mesmos arquivos do `.zip`.
 
 ## Usar
 
 1. Feche o Stremio, inclusive o ícone da bandeja.
-2. Abra `dist\StremioParty.cmd` e deixe a janela preta aberta enquanto assiste.
+2. Abra `StremioParty.cmd` (na pasta extraída, ou em `dist` se você gerou a partir do código) e deixe a janela preta aberta enquanto assiste.
 3. Na primeira vez, entre na sua conta do Stremio de novo. O login daqui é separado do Stremio normal; ao entrar, seus addons vêm junto.
 
 **Admin:** botão 👥 na lateral direita → apelido → *Criar sala pela internet* (com cloudflared) ou *Criar sala* (Tailscale) → *Copiar convite* e mande aos amigos. Depois abra o filme e escolha o stream (ou cole um magnet na busca).
