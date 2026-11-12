@@ -8,6 +8,7 @@ import os from 'os';
 import path from 'path';
 import { DEFAULT_ROOM_PORT } from '../protocol';
 import { startPartyServer } from '../server/server';
+import { closeTunnel, findCloudflared, openTunnel } from './tunnel';
 
 const UPSTREAM = 'web.stremio.com';
 const UI_PORT = Number(process.env.PARTY_UI_PORT) || 11480;
@@ -159,9 +160,17 @@ async function main(): Promise<void> {
   });
   const localUp = rooms.addresses.includes(`127.0.0.1:${ROOM_PORT}`);
   const shareUp = !!tsIp && rooms.addresses.includes(`${tsIp}:${ROOM_PORT}`);
+  const cloudflared = localUp ? findCloudflared() : null;
   const info = localUp
-    ? { local: `ws://127.0.0.1:${ROOM_PORT}`, share: shareUp ? `${tsIp}:${ROOM_PORT}` : null }
+    ? { local: `ws://127.0.0.1:${ROOM_PORT}`, share: shareUp ? `${tsIp}:${ROOM_PORT}` : null, tunnel: !!cloudflared }
     : null;
+  const json = (res: http.ServerResponse, status: number, body: unknown) => {
+    res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    res.end(JSON.stringify(body));
+  };
+  // Ctrl+C não dispara 'exit' sozinho; sem isto o cloudflared poderia ficar aberto.
+  process.on('SIGINT', () => process.exit(0));
+  process.on('exit', closeTunnel);
 
   const ui = http.createServer((req, res) => {
     const p = (req.url || '/').split('?')[0];
@@ -177,9 +186,19 @@ async function main(): Promise<void> {
       });
       return;
     }
-    if (p === '/__party/info') {
-      res.writeHead(info ? 200 : 503, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-      return res.end(JSON.stringify(info ?? {}));
+    if (p === '/__party/info') return json(res, info ? 200 : 503, info ?? {});
+    if (p === '/__party/tunnel') {
+      // Só a nossa página pode pedir o túnel: outro site aberto no PC não deve conseguir expor a sala.
+      if (req.method !== 'POST' || req.headers.origin !== UI_ORIGIN) return json(res, 403, { error: 'Pedido recusado.' });
+      if (!cloudflared) return json(res, 503, { error: 'cloudflared não encontrado neste PC.' });
+      openTunnel(cloudflared, ROOM_PORT, (s) => console.log(`[Stremio Party] ${s}`)).then(
+        (url) => {
+          console.log(`[Stremio Party] Servidor de salas para os amigos (internet): ${url}`);
+          json(res, 200, { url });
+        },
+        (e) => json(res, 503, { error: e?.message || String(e) }),
+      );
+      return;
     }
     proxy(req, res);
   });
@@ -208,7 +227,8 @@ async function main(): Promise<void> {
   console.log('[Stremio Party] Interface com a sala:', webui);
   if (!localUp) console.log('[Stremio Party] Servidor de salas local indisponível; use um servidor externo.');
   else if (shareUp) console.log(`[Stremio Party] Servidor de salas para os amigos (Tailscale): ${tsIp}:${ROOM_PORT}`);
-  else console.log('[Stremio Party] Tailscale não encontrado: as salas criadas aqui só funcionam neste PC.');
+  else if (!cloudflared) console.log('[Stremio Party] Sem Tailscale nem cloudflared: as salas criadas aqui só funcionam neste PC.');
+  if (cloudflared) console.log('[Stremio Party] cloudflared encontrado: use "Criar sala pela internet" no painel.');
 
   if (noShell) return;
   const child = spawn(path.join(dir, SHELL_EXE), [`--webui-url=${webui}`], { cwd: dir, stdio: 'ignore' });

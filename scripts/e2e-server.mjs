@@ -1,6 +1,9 @@
 // Dois clientes simulados contra o servidor de salas real (porta 11481).
-const URL = 'ws://127.0.0.1:11481';
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+// Uso: node scripts/e2e-server.mjs [url] [espera em ms]
+// Pelo túnel, passe a URL wss:// e uma espera maior (ex.: 800), por causa da latência.
+const URL = process.argv[2] || 'ws://127.0.0.1:11481';
+const STEP = Number(process.argv[3]) || 150;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms === 150 ? STEP : ms));
 function client(label) {
   const ws = new WebSocket(URL);
   const c = { label, ws, room: null, id: null, errors: [], left: null };

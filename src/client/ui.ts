@@ -7,6 +7,8 @@ export interface HostInfo {
   local: string;
   /** Endereço `ip:porta` que os amigos usam (IP Tailscale), se houver. */
   share: string | null;
+  /** O launcher achou o cloudflared e pode abrir um túnel para a internet. */
+  tunnel: boolean;
 }
 
 export interface UiActions {
@@ -78,6 +80,7 @@ export class UI {
   private form = { name: '', invite: '', server: '' };
   /** Endereço (ip:porta ou URL) pelo qual entramos na sala atual, para montar o convite. */
   private joinedVia = '';
+  private tunnelBusy = false;
 
   constructor(
     private readonly net: Net,
@@ -155,9 +158,10 @@ export class UI {
   }
 
   private lobbyHtml(): string {
-    const busy = this.net.state === 'connecting';
+    const busy = this.net.state === 'connecting' || this.tunnelBusy;
     const dis = busy ? 'disabled' : '';
     const share = this.host?.share;
+    const tunnel = !!this.host?.tunnel;
     return `
       <h2>Stremio Party</h2>
       <label>Seu apelido</label>
@@ -165,17 +169,24 @@ export class UI {
 
       <h3>Entrar em uma sala</h3>
       <label>Convite do admin</label>
-      <input type="text" data-f="invite" value="${esc(this.form.invite)}" placeholder="100.x.y.z:${DEFAULT_ROOM_PORT}/ABCDE">
-      <button class="btn" data-act="join" ${dis}>${busy ? 'Conectando…' : 'Entrar'}</button>
+      <input type="text" data-f="invite" value="${esc(this.form.invite)}" placeholder="Cole aqui o convite (endereço/CÓDIGO)">
+      <button class="btn" data-act="join" ${dis}>${this.net.state === 'connecting' ? 'Conectando…' : 'Entrar'}</button>
 
       <h3>Criar uma sala</h3>
       <div class="muted">${
         this.host
           ? share
-            ? 'A sala fica neste PC e seus amigos entram pela rede Tailscale.'
-            : 'Tailscale não encontrado neste PC: a sala só será alcançável por um servidor externo.'
+            ? `A sala fica neste PC e seus amigos entram pela rede Tailscale${tunnel ? ' ou, sem instalar nada, pela internet' : ''}.`
+            : tunnel
+              ? 'A sala fica neste PC. Crie pela internet para seus amigos entrarem sem instalar nada.'
+              : 'Sem Tailscale nem cloudflared neste PC: a sala só será alcançável por um servidor externo.'
           : 'Sem launcher local: informe um servidor de salas.'
       }</div>
+      ${
+        tunnel
+          ? `<button class="btn" data-act="create-tunnel" ${dis}>${this.tunnelBusy ? 'Abrindo túnel…' : 'Criar sala pela internet'}</button>`
+          : ''
+      }
       <label>Servidor externo (opcional)</label>
       <input type="text" data-f="server" value="${esc(this.form.server)}" placeholder="vazio = este PC">
       <button class="btn ghost" data-act="create" ${dis}>Criar sala</button>
@@ -314,6 +325,8 @@ export class UI {
         return this.join();
       case 'create':
         return this.create();
+      case 'create-tunnel':
+        return void this.createViaTunnel();
       case 'leave':
         return this.net.leave();
       case 'goto':
@@ -342,7 +355,7 @@ export class UI {
     const addr = cut >= 0 ? invite.slice(0, cut) : '';
     const url = normalizeServerUrl(addr, DEFAULT_ROOM_PORT);
     if (!url || !/^[A-Za-z0-9]{4,8}$/.test(code)) {
-      return this.toast(`Convite inválido. O formato é endereço/CÓDIGO, ex.: 100.64.0.1:${DEFAULT_ROOM_PORT}/ABCDE`);
+      return this.toast(`Convite inválido. O formato é endereço/CÓDIGO, ex.: 100.64.0.1:${DEFAULT_ROOM_PORT}/ABCDE ou wss://nome.trycloudflare.com/ABCDE`);
     }
     this.joinedVia = addr.trim();
     this.net.join(url, this.name(), code);
@@ -358,5 +371,26 @@ export class UI {
     if (!this.host.share) this.toast('Tailscale não encontrado: seus amigos não vão alcançar esta sala.');
     this.joinedVia = this.host.share || this.host.local.replace(/^ws:\/\//, '');
     this.net.create(this.host.local, this.name());
+  }
+
+  /** Pede ao launcher um túnel para a internet e cria a sala com o convite apontando para ele. */
+  private async createViaTunnel(): Promise<void> {
+    const host = this.host;
+    if (!host?.tunnel || this.tunnelBusy) return;
+    this.tunnelBusy = true;
+    this.render();
+    try {
+      const res = await fetch('/__party/tunnel', { method: 'POST' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || typeof body.url !== 'string') throw new Error(body.error || 'sem resposta do launcher');
+      this.joinedVia = body.url;
+      // O admin fala direto com o próprio PC; só os amigos passam pelo túnel.
+      this.net.create(host.local, this.name());
+    } catch (e) {
+      this.toast(`Não deu para abrir o túnel: ${e instanceof Error ? e.message : String(e)}.`);
+    } finally {
+      this.tunnelBusy = false;
+      this.render();
+    }
   }
 }
