@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="Ícone do Stremio Party">
+  <rect width="96" height="96" rx="22" fill="#7b5bf5"/>
+  <circle cx="48" cy="48" r="30" fill="none" stroke="#d6ccff" stroke-width="6.5" stroke-linecap="round" stroke-dasharray="48.7 14.13" transform="rotate(-76.5 48 48)"/>
+  <path d="M41.5 35 L62 48 L41.5 61 Z" fill="#ffffff" stroke="#ffffff" stroke-width="4.5" stroke-linejoin="round"/>
+</svg>

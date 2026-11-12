@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/marca/icone.svg" width="96" height="96" alt="Ícone do Stremio Party"></p>
+
 # Stremio Party
 
 Watch party para o **Stremio 5 no Windows**: uma sala, o mesmo filme, play/pause/seek compartilhados entre amigos.
