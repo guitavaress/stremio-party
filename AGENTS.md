@@ -17,7 +17,7 @@ Rode os três antes de dar uma mudança por pronta. `dist/` não é versionado.
 - `src/protocol.ts`: tipos das mensagens cliente↔servidor. Mudou aqui, mude `parseClientMsg` em `room.ts`.
 - `src/server/room.ts`: estado autoritativo da sala, sem sockets (testável). `server.ts` é a casca WebSocket; `main.ts` é o servidor avulso.
 - `src/client/`: script injetado na interface do Stremio. `mpv.ts` (ponte com o player), `net.ts` (conexão e relógio), `sync.ts` (aplica o estado no player e reporta status), `ui.ts` (painel em Shadow DOM), `main.ts` (liga tudo).
-- `src/launcher/main.ts`: proxy da interface, repasse do servidor de streaming, servidor de salas, abre o shell.
+- `src/launcher/main.ts`: proxy da interface, repasse do servidor de streaming, servidor de salas, abre o shell. `tunnel.ts` cuida do `cloudflared`.
 
 ## Restrições que mordem
 
@@ -29,6 +29,7 @@ Rode os três antes de dar uma mudança por pronta. `dist/` não é versionado.
 - Logo após um `loadfile`, a interface manda `pause=false` sozinha. `LOAD_GRACE_MS` em `client/main.ts` evita tratar isso como ação do usuário.
 - O painel só recria o DOM quando o HTML muda (`lastHtml`), para não perder foco e cliques. Não coloque nele valores que mudam a cada segundo.
 - O proxy da interface e o repasse escutam só em `127.0.0.1`. Mantenha assim.
+- **O túnel da Cloudflare (`launcher/tunnel.ts`) só abre a pedido do painel** (`POST /__party/tunnel`, com `Origin` conferido) e só publica a porta do servidor de salas. Não o abra na inicialização: o mesmo `dist` roda no PC dos convidados. O launcher não baixa o `cloudflared`; só o detecta.
 
 ## Sincronia (resumo)
 

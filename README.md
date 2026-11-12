@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/marca/icone.svg" width="96" height="96" alt="Ícone do Stremio Party"></p>
+
 # Stremio Party
 
 Watch party para o **Stremio 5 no Windows**: uma sala, o mesmo filme, play/pause/seek compartilhados entre amigos.
@@ -14,27 +16,38 @@ Não altera a instalação do Stremio: um launcher abre o Stremio oficial aponta
 ## Requisitos
 
 - Windows com [Stremio 5](https://www.stremio.com/downloads) instalado no local padrão.
-- [Tailscale](https://tailscale.com/) conectado, com todos na mesma rede (tailnet), ou um servidor de salas externo (veja abaixo).
-- Node.js 18+ só para quem for gerar a pasta `dist`. Quem só usa não precisa instalar nada.
+- Um caminho para os amigos alcançarem a sala, à escolha:
+  - **[cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) só no PC do admin** (`winget install Cloudflare.cloudflared`). Os amigos não instalam nada. Veja [Sala pela internet](#sala-pela-internet-cloudflared).
+  - [Tailscale](https://tailscale.com/) conectado em todos os PCs, na mesma rede (tailnet).
+  - Um servidor de salas externo (veja abaixo).
+- Node.js 18+ só para quem for gerar a pasta `dist` a partir do código. Quem baixa a versão pronta não precisa instalar nada.
 
-## Gerar a pasta `dist`
+## Baixar
+
+**[Baixar a versão mais recente](https://github.com/guitavaress/stremio-party/releases/latest)**
+
+Na página da versão, baixe o `.zip` em *Assets* e extraia em qualquer pasta. Ele traz tudo: `StremioParty.cmd`, `party.js`, `client.js`, `server.js`. Todos da sala usam o mesmo pacote, admin e amigos.
+
+### Gerar a partir do código
+
+Alternativa ao download, para quem quer rodar a versão do repositório:
 
 ```
 npm install
 npm run build
 ```
 
-Mande a pasta `dist` para os amigos (ela tem tudo: `StremioParty.cmd`, `party.js`, `client.js`, `server.js`).
+O resultado fica na pasta `dist`, com os mesmos arquivos do `.zip`.
 
 ## Usar
 
 1. Feche o Stremio, inclusive o ícone da bandeja.
-2. Abra `dist\StremioParty.cmd` e deixe a janela preta aberta enquanto assiste.
+2. Abra `StremioParty.cmd` (na pasta extraída, ou em `dist` se você gerou a partir do código) e deixe a janela preta aberta enquanto assiste.
 3. Na primeira vez, entre na sua conta do Stremio de novo. O login daqui é separado do Stremio normal; ao entrar, seus addons vêm junto.
 
-**Admin:** botão 👥 na lateral direita → apelido → *Criar sala* → *Copiar convite* e mande aos amigos. Depois abra o filme e escolha o stream (ou cole um magnet na busca).
+**Admin:** botão 👥 na lateral direita → apelido → *Criar sala pela internet* (com cloudflared) ou *Criar sala* (Tailscale) → *Copiar convite* e mande aos amigos. Depois abra o filme e escolha o stream (ou cole um magnet na busca).
 
-**Amigos:** botão 👥 → apelido → cole o convite (`100.x.y.z:11481/ABCDE`) → *Entrar*.
+**Amigos:** botão 👥 → apelido → cole o convite (`wss://nome.trycloudflare.com/ABCDE` ou `100.x.y.z:11481/ABCDE`) → *Entrar*.
 
 Quem não tem permissão e tenta mexer no player recebe um aviso e nada muda. Os amigos não precisam ter os mesmos addons do admin: o convite do vídeo já carrega o stream escolhido.
 
@@ -50,6 +63,8 @@ O launcher (`dist/party.js`) roda com o Node que já vem no Stremio (`stremio-ru
 | 11482 | 127.0.0.1 | Repasse para o servidor de streaming do Stremio (11470), que só aceita páginas da própria Stremio |
 | 11481 | 127.0.0.1 e IP Tailscale | Servidor de salas (WebSocket) |
 
+Com *Criar sala pela internet*, o launcher também executa o `cloudflared`, que publica só a porta 11481.
+
 `client.js` intercepta as mensagens entre a interface e o player (mpv) para aplicar o estado da sala e transformar play/pause/seek do usuário em comandos da sala. O servidor de salas é autoritativo: valida permissões e só libera o play quando todos reportam prontos.
 
 ## Desenvolvimento
@@ -59,7 +74,7 @@ npm test                      # máquina de sincronia do servidor
 npm run typecheck
 npm run build
 npm start                     # launcher com o Node do sistema
-node scripts/e2e-server.mjs   # dois clientes simulados (launcher rodando)
+node scripts/e2e-server.mjs   # dois clientes simulados (launcher rodando); aceita [url] [espera em ms]
 node scripts/e2e-real.mjs     # Stremio real como admin + membro simulado
 ```
 
@@ -70,7 +85,7 @@ set WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333
 npm start
 ```
 
-Variáveis do launcher: `STREMIO_DIR`, `PARTY_UI_PORT`, `PARTY_ROOM_PORT`, `PARTY_SS_PORT`. Com `--no-shell` ele sobe só os servidores.
+Variáveis do launcher: `STREMIO_DIR`, `PARTY_UI_PORT`, `PARTY_ROOM_PORT`, `PARTY_SS_PORT`, `PARTY_CLOUDFLARED` (caminho do `cloudflared.exe`). Com `--no-shell` ele sobe só os servidores.
 
 ## Limitações conhecidas
 
@@ -79,6 +94,21 @@ Variáveis do launcher: `STREMIO_DIR`, `PARTY_UI_PORT`, `PARTY_ROOM_PORT`, `PART
 - Um vídeo novo sempre começa do zero para a sala; para continuar de onde pararam, o admin dá seek.
 - Quem cai e reconecta volta sem as permissões que tinha. Se o admin cair, a sala passa para outro membro.
 - O nome do filme no painel depende dos nomes de classe da interface do Stremio; se mudarem, aparece "Vídeo em reprodução".
+
+## Sala pela internet (cloudflared)
+
+Só o admin precisa do `cloudflared`. O launcher o procura em `PARTY_CLOUDFLARED`, na pasta do `party.js` (`cloudflared.exe`) e no PATH; ele não baixa nada sozinho. Quando encontra, o painel mostra *Criar sala pela internet*: o launcher abre um [quick tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/) da Cloudflare (grátis, sem conta) e o convite sai como `wss://nome.trycloudflare.com/CÓDIGO`.
+
+- O endereço muda a cada vez que o launcher abre; mande o convite novo em cada sessão.
+- O túnel só abre quando você pede e fecha junto com o launcher.
+- O vídeo não passa pelo túnel, só os comandos da sala.
+
+Segurança, para saber o que está exposto:
+
+- Só o servidor de salas fica alcançável. A interface e o servidor de streaming continuam restritos ao seu PC.
+- O endereço não é uma senha. Quem o tiver pode criar salas no seu servidor; para entrar na sua, precisa também do código (a conexão cai depois de 5 códigos errados).
+- Quem entra na sala vê os apelidos e o link do vídeo. Com addons de debrid, esse link pode conter o seu token: mande o convite só para quem você confia.
+- A Cloudflare termina o TLS, então enxerga o tráfego da sala.
 
 ## Servidor de salas externo (sem Tailscale)
 

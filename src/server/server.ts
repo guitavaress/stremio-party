@@ -6,12 +6,15 @@ import { Room, parseClientMsg } from './room';
 
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // sem 0/O, 1/I/L
 const HEARTBEAT_MS = 10_000;
+/** Códigos errados tolerados por conexão; o servidor pode estar exposto na internet. */
+const MAX_BAD_JOINS = 5;
 
 interface Conn {
   id: string;
   ws: WebSocket;
   room: Room | null;
   alive: boolean;
+  badJoins: number;
 }
 
 export interface PartyServer {
@@ -51,7 +54,7 @@ export async function startPartyServer(opts: { port: number; hosts: string[]; lo
   };
 
   const onConnection = (ws: WebSocket) => {
-    const c: Conn = { id: randomBytes(8).toString('hex'), ws, room: null, alive: true };
+    const c: Conn = { id: randomBytes(8).toString('hex'), ws, room: null, alive: true, badJoins: 0 };
     conns.set(c.id, c);
     const reply = (msg: ServerMsg) => ws.send(JSON.stringify(msg));
 
@@ -80,7 +83,12 @@ export async function startPartyServer(opts: { port: number; hosts: string[]; lo
           rooms.set(room.code, room);
         } else {
           room = rooms.get(msg.code);
-          if (!room) return reply({ t: 'error', code: 'no_room', message: `Sala ${msg.code} não existe.` });
+          if (!room) {
+            reply({ t: 'error', code: 'no_room', message: `Sala ${msg.code} não existe.` });
+            // Dificulta adivinhar códigos por tentativa e erro.
+            if (++c.badJoins >= MAX_BAD_JOINS) ws.close(1008, 'Muitas tentativas');
+            return;
+          }
           if (room.members.size >= LIMITS.members) return reply({ t: 'error', code: 'full', message: 'A sala está cheia.' });
         }
         c.room = room;

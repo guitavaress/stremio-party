@@ -173,7 +173,7 @@ function start(): void {
     .then((r) => (r.ok ? r.json() : null))
     .then((info) => {
       if (info && typeof info.local === 'string') {
-        ui.host = { local: info.local, share: typeof info.share === 'string' ? info.share : null };
+        ui.host = { local: info.local, share: typeof info.share === 'string' ? info.share : null, tunnel: info.tunnel === true };
         ui.render();
       }
     })
